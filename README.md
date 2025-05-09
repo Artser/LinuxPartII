@@ -7,4 +7,4 @@
 
 1 Перед работами проверим текущую версию ядра:
 [img.png](img.png)
-rerer
+rererdxfgdfgdfgd
