@@ -94,3 +94,135 @@ systemctl start watchlog.timer
 
 ```
 root@my:~# tail -n 1000 /var/log/syslog  | grep word
+
+```
+## Задание №2 Установить spawn-fcgi и создать unit-файл (spawn-fcgi.sevice) с помощью переделки init-скрипта
+1. Устанавливаем spawn-fcgi и необходимые для него пакеты:
+
+
+```
+apt install spawn-fcgi php php-cgi php-cli  apache2 libapache2-mod-fcgid -y
+```
+2. Создаем файл с настройками для будущего сервиса
+```
+touch /etc/spawn-fcgi/fcgi.conf
+```
+```
+# You must set some working options before the "spawn-fcgi" service will work.
+# If SOCKET points to a file, then this file is cleaned up by the init script.
+#
+# See spawn-fcgi(1) for all possible options.
+#
+# Example :
+SOCKET=/var/run/php-fcgi.sock
+OPTIONS="-u www-data -g www-data -s $SOCKET -S -M 0600 -C 32 -F 1 -- /usr/bin/php-cgi"
+```
+3. Создаём юнит файл для для spawn-fcgi
+```
+touch /etc/systemd/system/spawn-fcgi.service
+```
+```
+[Unit]
+Description=Spawn-fcgi startup service by Otus
+After=network.target
+
+[Service]
+Type=simple
+PIDFile=/var/run/spawn-fcgi.pid
+EnvironmentFile=/etc/spawn-fcgi/fcgi.conf
+ExecStart=/usr/bin/spawn-fcgi -n $OPTIONS
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
+```
+4. Проверяем
+
+```
+root@lvm:~# systemctl start spawn-fcgi
+root@lvm:~#  systemctl status spawn-fcgi
+```
+
+
+![Добовление init=/bin/bash при запуске системы](Скриншот.jpg)
+## Задание №3 Доработать unit-файл Nginx (nginx.service) для запуска нескольких инстансов сервера с разными конфигурационными файлами одновременно
+1. Установим Nginx
+```
+apt install nginx -y
+```
+2. Для запуска нескольких экземпляров сервиса модифицируем исходный service для использования различной конфигурации, а также PID-файлов. Для этого создадим новый Unit для работы с шаблонами (/etc/systemd/system/nginx@.service)
+```
+touch /etc/systemd/system/nginx@.service
+```
+```
+# Stop dance for nginx
+# =======================
+#
+# ExecStop sends SIGSTOP (graceful stop) to the nginx process.
+# If, after 5s (--retry QUIT/5) nginx is still running, systemd takes control
+# and sends SIGTERM (fast shutdown) to the main process.
+# After another 5s (TimeoutStopSec=5), and if nginx is alive, systemd sends
+# SIGKILL to all the remaining processes in the process group (KillMode=mixed).
+#
+# nginx signals reference doc:
+# http://nginx.org/en/docs/control.html
+#
+[Unit]
+Description=A high performance web server and a reverse proxy server
+Documentation=man:nginx(8)
+After=network.target nss-lookup.target
+
+[Service]
+Type=forking
+PIDFile=/run/nginx-%I.pid
+ExecStartPre=/usr/sbin/nginx -t -c /etc/nginx/nginx-%I.conf -q -g 'daemon on; master_process on;'
+ExecStart=/usr/sbin/nginx -c /etc/nginx/nginx-%I.conf -g 'daemon on; master_process on;'
+ExecReload=/usr/sbin/nginx -c /etc/nginx/nginx-%I.conf -g 'daemon on; master_process on;' -s reload
+ExecStop=-/sbin/start-stop-daemon --quiet --stop --retry QUIT/5 --pidfile /run/nginx-%I.pid
+TimeoutStopSec=5
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target
+```
+3. Cоздаём два файла конфигурации (/etc/nginx/nginx-first.conf, /etc/nginx/nginx-second.conf)
+
+```
+nano nginx-first.conf
+pid /run/nginx-first.pid;
+
+http {
+server {
+listen 9001;
+server_name localhost;
+location / {
+root /var/www/html;
+index index.html;
+}
+}
+#include /etc/nginx/sites-enabled/*;
+...
+}
+```
+```
+nano nginx-second.conf
+http {
+server {
+listen 9002;
+server_name localhost;
+location / {
+root /var/www/html;
+index index.html;
+}
+}
+#include /etc/nginx/sites-enabled/*;
+...
+}
+```
+4. Проверяем
+```
+systemctl start nginx@first     
+systemctl start nginx@second
+```
+
+![Добовление init=/bin/bash при запуске системы](photo.jpg)
