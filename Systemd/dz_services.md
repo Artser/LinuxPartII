@@ -96,6 +96,8 @@ systemctl start watchlog.timer
 root@my:~# tail -n 1000 /var/log/syslog  | grep word
 
 ```
+![Добовление init=/bin/bash при запуске системы](Скриншот 21-06-2025 215835.jpg)
+
 ## Задание №2 Установить spawn-fcgi и создать unit-файл (spawn-fcgi.sevice) с помощью переделки init-скрипта
 1. Устанавливаем spawn-fcgi и необходимые для него пакеты:
 
@@ -144,7 +146,7 @@ root@lvm:~#  systemctl status spawn-fcgi
 ```
 
 
-![Добовление init=/bin/bash при запуске системы](Скриншот.jpg)
+![Добовление init=/bin/bash при запуске системы](Скриншот 21-06-2025 220320.jpg)
 ## Задание №3 Доработать unit-файл Nginx (nginx.service) для запуска нескольких инстансов сервера с разными конфигурационными файлами одновременно
 1. Установим Nginx
 ```
@@ -225,4 +227,4 @@ systemctl start nginx@first
 systemctl start nginx@second
 ```
 
-![Добовление init=/bin/bash при запуске системы](photo.jpg)
+![Добовление init=/bin/bash при запуске системы](photo_2025-06-21_21-34-53.jpg)
