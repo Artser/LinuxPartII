@@ -1,0 +1,67 @@
+- name: Install required packages
+  apt:
+    name:
+      - acl
+      - borgbackup
+      - nfs-kernel-server
+    state: present
+
+- name: Create backup group
+  group:
+    name: "{{ borg_group }}"
+    state: present
+
+- name: Create backup user
+  user:
+    name: "{{ borg_user }}"
+    group: "{{ borg_group }}"
+    system: yes
+    shell: /bin/bash
+    home: /home/{{ borg_user }}
+
+- name: Check for additional disks
+  shell: lsblk -o NAME,SIZE,TYPE | grep disk | grep -v sda
+  register: additional_disks
+  changed_when: false
+
+- name: Format additional disk if present
+  filesystem:
+    fstype: ext4
+    dev: /dev/sdb
+  when: additional_disks.stdout != ""
+
+- name: Create mount point
+  file:
+    path: /var/backup
+    state: directory
+    mode: '0755'
+
+- name: Mount backup disk
+  mount:
+    path: /var/backup
+    src: /dev/sdb
+    fstype: ext4
+    state: mounted
+
+- name: Create Borg repository directory on mounted disk
+  file:
+    path: /var/backup/borg-repo
+    state: directory
+    owner: "{{ borg_user }}"
+    group: "{{ borg_group }}"
+    mode: '0755'
+
+- name: Initialize Borg repository
+  become_user: "{{ borg_user }}"
+  command: "borg init --encryption=repokey {{ backup_repo_path }}"
+  args:
+    creates: "{{ backup_repo_path }}/config"
+  environment:
+    BORG_PASSPHRASE: "{{ backup_encryption_passphrase }}"
+
+- name: Setup SSH key for backup user
+  authorized_key:
+    user: "{{ borg_user }}"
+    state: present
+    key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+  when: lookup('file', '~/.ssh/id_rsa.pub') != ""

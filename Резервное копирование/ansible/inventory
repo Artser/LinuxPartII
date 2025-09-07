@@ -1,0 +1,19 @@
+[backup_servers]
+backup_s ansible_host=192.168.0.100
+
+[clients]
+client ansible_host=192.168.0.101
+
+[all:vars]
+ansible_user=vagrant
+#ansible_ssh_private_key_file=~/.vagrant.d/insecure_private_key
+#ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+# Backup variables
+backup_repo_path=/var/backup/borg-repo
+backup_source=/etc
+backup_encryption_passphrase=my_secure_backup_password_123
+backup_server_ip=192.168.0.100
+backup_retention_policy=--keep-daily=90 --keep-monthly=12 --keep-yearly=1
+borg_user=borg
+borg_group=borg

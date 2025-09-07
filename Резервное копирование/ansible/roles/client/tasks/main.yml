@@ -1,0 +1,88 @@
+- name: Install BorgBackup
+  apt:
+    name:
+      - acl
+      - borgbackup
+      - sshpass
+    state: present
+
+- name: Create SSH key for backup in vagrant home
+  openssh_keypair:
+    path: /home/vagrant/.ssh/id_borg
+    type: rsa
+    size: 4096
+    state: present
+    owner: vagrant
+    group: vagrant
+    mode: '0600'
+
+- name: Add backup server to known hosts
+  known_hosts:
+    name: "{{ backup_server_ip }}"
+    key: "{{ lookup('pipe', 'ssh-keyscan -H ' + backup_server_ip + ' 2>/dev/null') }}"
+
+- name: Set password for borg user on backup server (temporarily)
+  shell: |
+    sshpass -p "vagrant" ssh -o StrictHostKeyChecking=no vagrant@{{ backup_server_ip }} \
+    "echo 'borg:vagrant' | sudo chpasswd"
+  become: yes
+
+- name: Copy SSH public key to backup server using ssh-copy-id
+  shell: |
+    sshpass -p "vagrant" ssh-copy-id -i /home/vagrant/.ssh/id_borg.pub -o StrictHostKeyChecking=no {{ borg_user }}@{{ backup_server_ip }}
+  become: yes
+  become_user: vagrant
+
+- name: Test SSH connection to backup server
+  shell: |
+    ssh -i /home/vagrant/.ssh/id_borg -o StrictHostKeyChecking=no {{ borg_user }}@{{ backup_server_ip }} "echo Connection successful"
+  become: yes
+  become_user: vagrant
+  register: ssh_test
+  changed_when: false
+
+- name: Remove password for borg user (security)
+  shell: |
+    sshpass -p "vagrant" ssh -o StrictHostKeyChecking=no vagrant@{{ backup_server_ip }} \
+    "sudo passwd -d {{ borg_user }}"
+  become: yes
+
+- name: Create backup script directory
+  file:
+    path: /opt/backup
+    state: directory
+    mode: '0755'
+
+- name: Deploy backup script
+  template:
+    src: backup-script.j2
+    dest: /opt/backup/backup.sh
+    mode: '0755'
+
+- name: Deploy systemd timer
+  template:
+    src: borg-backup.timer.j2
+    dest: /etc/systemd/system/borg-backup.timer
+
+- name: Deploy systemd service
+  template:
+    src: borg-backup.service.j2
+    dest: /etc/systemd/system/borg-backup.service
+
+- name: Create log directory
+  file:
+    path: /var/log/borg-backup
+    state: directory
+    mode: '0755'
+
+- name: Deploy logrotate configuration
+  template:
+    src: logrotate-borg.j2
+    dest: /etc/logrotate.d/borg-backup
+
+- name: Enable and start backup timer
+  systemd:
+    name: borg-backup.timer
+    enabled: yes
+    state: started
+    daemon_reload: yes
