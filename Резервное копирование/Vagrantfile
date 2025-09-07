@@ -1,0 +1,71 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "generic/ubuntu2204"
+  
+  # Backup server
+  config.vm.define "backup_s" do |backup|
+    backup.vm.hostname = "backup-s"
+    backup.vm.network("public_network", ip: "192.168.0.100", adapter: 2, netmask: "255.255.255.0")
+    backup.vm.provider "virtualbox" do |vb|
+      vb.memory = "1024"
+      vb.cpus = 2
+      if File.exist?("backup_disk.vdi")
+        vb.customize ['storageattach', :id, '--storagectl', 'SATA Controller', '--port', 1, '--device', 0, '--type', 'hdd', '--medium', 'backup_disk.vdi']
+      else
+        vb.customize ['createmedium', 'disk', '--filename', 'backup_disk.vdi', '--size', 2048, '--format', 'VDI']
+        vb.customize ['storageattach', :id, '--storagectl', 'SATA Controller', '--port', 1, '--device', 0, '--type', 'hdd', '--medium', 'backup_disk.vdi']
+      end
+    end
+    backup.vm.provision "shell", inline: <<-SHELL
+      echo -e "nameserver 8.8.8.8\nnameserver 8.8.4.4" | sudo tee /etc/resolv.conf
+    SHELL
+  end
+
+  # Client machine
+  config.vm.define "client" do |client|
+    client.vm.hostname = "client"
+    client.vm.network("public_network", ip: "192.168.0.101", adapter: 2, netmask: "255.255.255.0")
+    client.vm.provider "virtualbox" do |vb|
+      vb.memory = "1024"
+      vb.cpus = 1
+    end
+    client.vm.provision "shell", inline: <<-SHELL
+      echo -e "nameserver 8.8.8.8\nnameserver 8.8.4.4" | sudo tee /etc/resolv.conf
+    SHELL
+  end
+
+  # Ansible machine
+  config.vm.define "ansible" do |ansible|
+    ansible.vm.hostname = "ansible"
+    ansible.vm.network("public_network", ip: "192.168.0.102", adapter: 2, netmask: "255.255.255.0")
+    ansible.vm.provider "virtualbox" do |vb|
+      vb.memory = "1536"
+      vb.cpus = 1
+    end
+
+    ansible.vm.provision "shell", inline: <<-SHELL
+      echo -e "nameserver 8.8.8.8\nnameserver 8.8.4.4" | sudo tee /etc/resolv.conf
+
+      sudo apt-get update
+      
+      sudo apt-get install -y software-properties-common gnupg2
+      
+      sudo apt-add-repository --yes --update ppa:ansible/ansible
+      
+      sudo apt-get install -y ansible
+      
+      ansible --version
+    SHELL
+  
+  ansible.vm.synced_folder "./ansible", "/home/vagrant/ansible"
+
+  end
+
+  ## Ansible provisioner
+  #config.vm.provision "ansible" do |ansible|
+  #  ansible.playbook = "ansible/playbook.yml"
+  #  ansible.inventory_path = "ansible/inventory"
+  #  ansible.extra_vars = {
+  #    ansible_python_interpreter: "/usr/bin/python3"
+  #  }
+  #end
+end

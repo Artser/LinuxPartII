@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Backup script for BorgBackup
+BACKUP_SOURCE="{{ backup_source }}"
+BACKUP_REPO="{{ borg_user }}@{{ backup_server_ip }}:{{ backup_repo_path }}"
+BACKUP_NAME="etc-backup-$(date +%Y-%m-%d-%H%M%S)"
+LOG_FILE="/var/log/borg-backup/backup-$(date +%Y%m%d).log"
+
+export BORG_PASSPHRASE='{{ backup_encryption_passphrase }}'
+export BORG_RSH='ssh -i /home/vagrant/.ssh/id_borg'
+
+{
+    echo "=== Starting backup at $(date) ==="
+    
+    # Create backup
+    borg create \
+        --stats \
+        --progress \
+        --compression lz4 \
+        $BACKUP_REPO::${BACKUP_NAME} \
+        $BACKUP_SOURCE
+
+    # Apply retention policy
+    borg prune \
+        --list \
+        --stats \
+        {{ backup_retention_policy }} \
+        $BACKUP_REPO
+
+    echo "=== Backup completed at $(date) ==="
+    echo ""
+
+} 2>&1 | tee -a $LOG_FILE
