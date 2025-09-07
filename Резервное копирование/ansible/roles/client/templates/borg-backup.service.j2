@@ -1,0 +1,10 @@
+[Unit]
+Description=BorgBackup Service
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/backup/backup.sh
+User=root
+Environment=BORG_PASSPHRASE={{ backup_encryption_passphrase }}
+Environment=BORG_RSH=ssh -i /home/vagrant/.ssh/id_borg
